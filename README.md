@@ -3,8 +3,11 @@
 Cool list of iframable websites hosted on Github Pages
 
 ## Star Wars ASCIIMATION
-<iframe src="https://asciimation.co.nz/index.php" width=1000px; height=1000px; border:none;></iframe>
-### Will be replaced with Lite version in the future
+```html
+<iframe src="https://burandby.github.io/Iframables/betterasciimation" width=1000px; height=1000px; border:none;></iframe>
+```
 
 ## Snake
-Not available yet
+```html
+<iframe src="https://burandby.github.io/Iframables/snake" width=1000px; height=1000px; border:none;></iframe>
+```
