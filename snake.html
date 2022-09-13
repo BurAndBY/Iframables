@@ -1,0 +1,670 @@
+<html class=" wphujagdk idc0_342"><script type="text/javascript">
+(function() {
+    var speed = 1.0
+    var setIntervalEnabled = true
+    var setTimeoutEnabled = true
+    var performanceNowEnabled = true
+    var dateNowEnabled = true
+    var requestAnimationFrameEnabled = true
+
+    var emptyFunction = () => {}
+
+    var originalClearInterval = window.clearInterval
+    var originalclearTimeout = window.clearTimeout
+
+    var originalSetInterval = window.setInterval
+    var originalSetTimeout = window.setTimeout
+
+    var originalPerformanceNow = window.performance.now
+    originalPerformanceNow = originalPerformanceNow.bind(window.performance)
+
+    var originalDateNow = Date.now
+
+    var originalRequestAnimationFrame = window.requestAnimationFrame
+
+    var timers = []
+    var reloadTimers = () => {
+        console.log(timers)
+        var newtimers = []
+        timers.forEach(timer => {
+            originalClearInterval(timer.id)
+            if (timer.customTimerId) {
+                originalClearInterval(timer.customTimerId)
+            }
+            if (!timer.finished) {
+                var newTimerId = originalSetInterval(timer.handler, setIntervalEnabled ? timer.timeout / speed : timer.timeout, ...timer.args)
+                timer.customTimerId = newTimerId
+                newtimers.push(timer)
+            }
+        })
+        timers = newtimers
+    }
+
+    window.addEventListener("message", (message) => {
+        if (message.data.command == "setSpeed") {
+            speed = parseFloat(message.data.value)
+            reloadTimers()
+        } else if (message.data.command == "cbSetInterval") {
+            setIntervalEnabled = message.data.value
+            reloadTimers()
+        } else if (message.data.command == "cbSetTimeout") {
+            setTimeoutEnabled = message.data.value
+        } else if (message.data.command == "cbPerformanceNow") {
+            performanceNowEnabled = message.data.value
+        } else if (message.data.command == "cbDateNow") {
+            dateNowEnabled = message.data.value
+        } else if (message.data.command == "cbRequestAnimationFrame") {
+            requestAnimationFrameEnabled = message.data.value
+        }
+    })
+    window.postMessage({command: "getSpeed"})
+
+    window.clearInterval = (id) => {
+        originalClearInterval(id)
+        timers.forEach(timer => {
+            if (timer.id == id) {
+                timer.finished = true
+                if (timer.customTimerId) {
+                    originalClearInterval(timer.customTimerId)
+                }
+            }
+        })
+    }
+
+    window.clearTimeout = (id) => {
+        originalclearTimeout(id)
+        timers.forEach(timer => {
+            if (timer.id == id) {
+                timer.finished = true
+                if (timer.customTimerId) {
+                    originalclearTimeout(timer.customTimerId)
+                }
+            }
+        })
+    }
+
+    window.setInterval = (handler, timeout, ...args) => {
+        console.log('timeout  ', timeout)
+        if (!timeout) timeout = 0;
+        var id = originalSetInterval(handler, setIntervalEnabled ? timeout / speed : timeout, ...args)
+        timers.push({id: id, handler: handler, timeout: timeout, args: args, finished: false, customTimerId: null})
+        return id
+    }
+
+    window.setTimeout = (handler, timeout, ...args) => {
+        if (!timeout) timeout = 0;
+        return originalSetTimeout(handler, setTimeoutEnabled ? timeout / speed : timeout, ...args)
+    }
+
+    // performance.now
+    (function() {
+        var performanceNowValue = null
+        var previusPerformanceNowValue = null
+        window.performance.now = () => {
+            var originalValue = originalPerformanceNow()
+            if (performanceNowValue) {
+                performanceNowValue += (originalValue - previusPerformanceNowValue) * (performanceNowEnabled ? speed : 1)
+            } else {
+                performanceNowValue = originalValue
+            }
+            previusPerformanceNowValue = originalValue
+            return Math.floor(performanceNowValue)
+        }
+    })();
+
+    // Date.now
+    (function() {
+        var dateNowValue = null
+        var previusDateNowValue = null
+        Date.now = () => {
+            var originalValue = originalDateNow()
+            if (dateNowValue) {
+                dateNowValue += (originalValue - previusDateNowValue) * (dateNowEnabled ? speed : 1)
+            } else {
+                dateNowValue = originalValue
+            }
+            previusDateNowValue = originalValue
+            return Math.floor(dateNowValue)
+        }
+    })();
+
+    // requestAnimationFrame
+    (function() {
+        var dateNowValue = null
+        var previusDateNowValue = null
+        var callbackFunctions = []
+        var callbackTick = []
+        var newRequestAnimationFrame = (callback) => {
+            return originalRequestAnimationFrame((timestamp) => {
+                var originalValue = originalDateNow()
+                if (dateNowValue) {
+                    dateNowValue += (originalValue - previusDateNowValue) * (requestAnimationFrameEnabled ? speed : 1)
+                } else {
+                    dateNowValue = originalValue
+                }
+                previusDateNowValue = originalValue
+                
+                var dateNowValue_MathFloor = Math.floor(dateNowValue)
+
+                var index = callbackFunctions.indexOf(callback)
+                var tickFrame = null
+                if (index == -1) {
+                    callbackFunctions.push(callback)
+                    callbackTick.push(0)
+                    callback(dateNowValue_MathFloor)
+                } else if (requestAnimationFrameEnabled) {
+                    tickFrame = callbackTick[index]
+                    tickFrame += speed
+
+                    if (tickFrame >= 1) {
+                        while (tickFrame >= 1) {
+                            callback(dateNowValue_MathFloor)
+                            window.requestAnimationFrame = emptyFunction
+                            tickFrame -= 1
+                        }
+                        window.requestAnimationFrame = newRequestAnimationFrame
+                    } else {
+                        window.requestAnimationFrame(callback)
+                    }
+                    callbackTick[index] = tickFrame
+                } else {
+                    callback(dateNowValue_MathFloor)
+                }
+            })
+        }
+        window.requestAnimationFrame = newRequestAnimationFrame
+    })();
+}());
+</script><head>
+	<title>Snake</title>
+	<meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1" maximum-scale="1.0," user-scalable="no&quot;">
+    <link rel="stylesheet" href="style.css">
+<script>
+window.skipProcent = 0;
+window.maxFPS = 0;
+window.frameDelay = 0;
+
+var rafs = 0;
+
+var raf = window.requestAnimationFrame;
+var nextRAFTime = Date.now();
+
+var mockedRaf = (callback) => {
+    var skip = (window.maxFPS !== 0 && Date.now() < nextRAFTime) || Math.random() < window.skipProcent;
+    
+    if (skip) {
+        skippingRaf(callback);
+    } else {
+        nextRAFTime = Date.now() + window.frameDelay;
+        raf(callback);
+    }
+
+    return rafs++;
+}
+
+function skippingRaf(func) {
+    raf(() => {
+        window.requestAnimationFrame(func);
+    })
+}
+
+window.setFPSLimit = function(v) {
+    window.frameDelay = 1000 / v;
+    window.maxFPS = v;
+}
+
+window.setSkipProcent = function(v) {
+    window.skipProcent = v; 
+}
+
+window.enableVirtualRAF = function enableDropFPS() {
+    window.requestAnimationFrame = mockedRaf;
+}
+
+window.disableVirtualRAF = function enableDropFPS() {
+    window.requestAnimationFrame = raf;
+}
+
+window.disableDropFPS = function disableDropFPS() {
+    window.skipProcent = 0;
+}
+
+window.disableLimitFPS = function disableLimitFPS() {
+    window.maxFPS = 0;
+}
+</script></head>
+<body style="">
+	<a href="/">Home</a>
+
+    <canvas id="canvas" height="200" style="background-color: #eee">Your Browser does not support Canvas, please upgrade</canvas>
+    <div id="controlButtons">
+        <div id="buttonUp" class="button"></div><!-- 
+         --><br>
+        <div id="buttonLeft" class="button"></div>
+        <div id="buttonBlank" class="button"></div>
+        <div id="buttonRight" class="button"></div><!-- 
+         --><br>
+        <div id="buttonDown" class="button"></div>
+    </div>
+    <div id="restartButton" class="button">Restart Game</div>
+    <div id="settingsButton" class="button">Settings</div>
+    <form id="settingsForm" class="hidden">
+
+        <label for="initialSpeed">Initial Speed (ms)</label><input type="number" id="initialSpeed" name="initialSpeed" value="150" min="30" max="999">
+        <br>
+        <label for="speedIncreaseStep">Speed Increase Step(ms)</label><input type="number" id="speedIncreaseStep" name="speedIncreaseStep" value="12" min="1" max="99">
+        <br>
+        <label for="applesToNextSpeed">Apples To Next Speed</label><input type="number" id="applesToNextSpeed" value="5" min="1" max="99">
+        <br>
+        <button id="saveSettingsButton" name="saveSettingsButton" class="button" type="submit">Save</button>
+
+    </form>
+ 
+	
+	<script>// Настройка холста
+var canvas = document.getElementById('canvas'),
+    ctx = canvas.getContext('2d');
+
+var width = canvas.width;
+var height = canvas.height;
+
+// Делим холст на ячейки
+var blockSize = 5;
+var widthInBlocks = width / blockSize;
+var heightInBlocks = height / blockSize;
+
+var snake;
+var apple;
+
+var score = 0;
+var gameInterval;
+
+var speed = 0;
+var initialSpeed = 150 // ms
+var speedIncreaseStep = 12; //ms
+var applesToNextSpeed = 5;
+
+var keyActions = {
+    37: "left",
+    38: "up",
+    39: "right",
+    40: "down"
+};
+
+// Функция отрисовки границ
+function drawBorder() {
+    ctx.fillStyle = "Gray";
+    // Верхняя
+    ctx.fillRect(0, 0, width, blockSize);
+    // Нижняя
+    ctx.fillRect(0, height - blockSize, width, blockSize);
+    // Левая
+    ctx.fillRect(0, 0, blockSize, height);
+    // Правая
+    ctx.fillRect(width - blockSize, 0, blockSize, height);
+};
+
+// Функция очистки холста
+function clearCanvas() {
+    ctx.clearRect(0, 0, width, height);
+};
+
+
+// Функция отображения текста текущего счёта
+function drawScore() {
+    ctx.font = "14px Ubuntu";
+    ctx.textBaseline = "top";
+    ctx.textAlign = "left";
+    ctx.fillStyle = "Black";
+
+    ctx.fillText("Score: " + score + " Speed: " + speed, blockSize, blockSize);
+}
+
+// Функция окончания игры (текст + остановка интервала)
+function gameOver() {
+    clearInterval(gameInterval);
+
+    ctx.font = "50px Montserrat";
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#933";
+
+    ctx.fillText("Game Over", width / 2, height / 2);
+    gameInterval = null;
+}
+
+
+// Рисование дуг и окружностей
+var circle = function(x, y, radius, fill = false, part = 1) {
+    ctx.beginPath();
+
+    // ctx.arc(X, Y, RADIUS, START ANGLE, END ANGLE, Против часовой?(TRUE/FALSE));
+    ctx.arc(x, y, radius, 0, Math.PI * 2 * part, false);
+
+    // Заполнять, если истина
+    if (fill) {
+        // Рисуем линии через центр круга, если включена заливка
+        // ctx.lineTo(x, y);
+        // ctx.lineTo(x + radius, y);
+        ctx.fill();
+    } else ctx.stroke();
+}
+
+
+
+
+
+
+//  ===================
+
+//  Создаём конструктор объекта Block и его методы
+
+//  ===================
+
+
+
+
+
+function Block(col, row) {
+    this.col = col;
+    this.row = row;
+};
+
+
+Block.prototype.drawSquare = function(color) {
+    var x = this.col * blockSize;
+    var y = this.row * blockSize;
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, blockSize, blockSize);
+};
+
+Block.prototype.drawCircle = function(color) {
+    var centerX = this.col * blockSize + blockSize / 2;
+    var centerY = this.row * blockSize + blockSize / 2;
+    ctx.fillStyle = color;
+    circle(centerX, centerY, blockSize / 2, true);
+};
+
+Block.prototype.equal = function(otherBlock) {
+    return this.col === otherBlock.col && this.row === otherBlock.row;
+};
+
+
+
+
+
+
+//  ===================
+
+//  Создаём конструктор объекта Snake и его методы
+
+//  ===================
+
+
+
+
+
+function Snake() {
+    this.segments = [
+        new Block(7, 5),
+        new Block(6, 5),
+        new Block(5, 5)
+    ];
+
+    this.direction = "right";
+    this.nextDirection = "right";
+}
+
+// Метод отрисовки змеи
+Snake.prototype.draw = function() {
+    // Рисуем голову другим цветом
+    this.segments[0].drawSquare("#5af");
+
+    // Рисуем остальные сегменты змеи
+    for (var i = 1; i < this.segments.length; i++) {
+        this.segments[i].drawSquare("#45f");
+    }
+};
+
+// Метод передвижения змеи в указанном направлении
+Snake.prototype.move = function() {
+    var head = this.segments[0];
+    var newHead;
+
+    this.direction = this.nextDirection;
+    switch (this.direction) {
+        case "right":
+            newHead = new Block(head.col + 1, head.row);
+            break;
+        case "left":
+            newHead = new Block(head.col - 1, head.row);
+            break;
+        case "down":
+            newHead = new Block(head.col, head.row + 1);
+            break;
+        case "up":
+            newHead = new Block(head.col, head.row - 1);
+            break;
+    }
+
+    if (this.checkCollision(newHead)) {
+        gameOver();
+        return;
+    }
+
+    this.segments.unshift(newHead);
+
+    if (newHead.equal(apple.position)) {
+        score++;
+        this.updateSpeed();
+        apple.move();
+    } else {
+        this.segments.pop();
+    }
+};
+
+Snake.prototype.updateSpeed = function() {
+    speed = this.segments.length - 3;
+    speed = ~~(speed / applesToNextSpeed);
+    clearInterval(gameInterval);
+    updateGame();
+}
+
+Snake.prototype.checkCollision = function(head) {
+    var leftCollision = (head.col === 0);
+    var topCollision = (head.row === 0);
+    var rightCollision = (head.col === widthInBlocks - 1);
+    var bottomCollision = (head.row === heightInBlocks - 1);
+
+    var wallCollision = leftCollision || rightCollision ||
+        topCollision || bottomCollision;
+
+    var selfCollision = false;
+
+    for (var i = 0; i < this.segments.length; i++) {
+        if (head.equal(this.segments[i])) {
+            selfCollision = true;
+        }
+    }
+
+    return wallCollision || selfCollision;
+};
+
+Snake.prototype.setDirection = function(newDirection) {
+    if (this.direction === "down" && newDirection === "up") {
+        return;
+    } else if (this.direction === "up" && newDirection === "down") {
+        return;
+    } else if (this.direction === "right" && newDirection === "left") {
+        return;
+    } else if (this.direction === "left" && newDirection === "right") {
+        return;
+    }
+
+    this.nextDirection = newDirection;
+};
+
+
+
+
+
+
+//  ===================
+
+//  Создаём конструктор объекта Apple и его методы
+
+//  ===================
+
+
+
+
+
+function Apple() {
+    this.position = new Block(10, 10);
+};
+
+Apple.prototype.draw = function() {
+    this.position.drawCircle("#3b4");
+};
+
+Apple.prototype.move = function() {
+    do {
+        var randomCol = Math.floor(Math.random() * (widthInBlocks - 2)) + 1;
+        var randomRow = Math.floor(Math.random() * (heightInBlocks - 2)) + 1;
+        var appleInSnake = false;
+        this.position = new Block(randomCol, randomRow);
+
+        // Проверка на нахождение яблока в змейке
+        for (var i = 0; i < snake.segments.length; i++) {
+            if (snake.segments[i].equal(this.position)) {
+                appleInSnake = true;
+                break;
+            }
+        }
+    } while (appleInSnake);
+
+};
+
+
+
+
+
+
+
+
+// Обработка нажатий клавиш
+document.querySelector("body").onkeydown = function(event) {
+    var newDirection = keyActions[event.keyCode];
+    if (newDirection !== undefined) {
+        snake.setDirection(newDirection);
+    }
+}
+
+// Обработка нажатий кнопок
+
+// Кнопка сброса
+document.querySelector("#restartButton").onclick = function(event) {
+    initializeGame();
+}
+
+// Settings button
+var settingsForm = document.querySelector("#settingsForm");
+document.querySelector("#settingsButton").onclick = function(event) {
+    settingsForm.classList.toggle("hidden");
+}
+
+function hideSettings() {
+    settingsForm.classList.add("hidden");
+}
+
+// Save button
+document.querySelector("#saveSettingsButton").onclick = function(event) {
+    initialSpeed = settingsForm.elements.initialSpeed.value;
+    speedIncreaseStep = settingsForm.elements.speedIncreaseStep.value;
+    applesToNextSpeed = settingsForm.elements.applesToNextSpeed.value;
+
+    hideSettings();
+
+    event.preventDefault();
+}
+
+var startButton = document.querySelector("#restartButton");
+var bodyElement = document.querySelector("body");
+
+
+//Start(Restart) button
+startButton.ontouchend = function(event) {
+    bodyElement.classList.add("touch");
+    startBtnToRestart();
+}
+startButton.onclick = function(event) {
+    startBtnToRestart();
+}
+
+function startBtnToRestart() {
+    startButton.classList.remove("start");
+    startButton.innerHTML = "Restart Game";
+    initializeGame();
+}
+
+
+// Control Buttons
+document.querySelector("#buttonUp").ontouchstart = function(event) {
+    snake.setDirection("up");
+}
+document.querySelector("#buttonDown").ontouchstart = function(event) {
+    snake.setDirection("down");
+}
+document.querySelector("#buttonLeft").ontouchstart = function(event) {
+    snake.setDirection("left");
+}
+document.querySelector("#buttonRight").ontouchstart = function(event) {
+    snake.setDirection("right");
+}
+
+var allButtons = document.body.querySelectorAll(".button");
+disableSelection(allButtons);
+
+
+function disableSelection(elements) {
+    elements.forEach(function() {
+        this.onselectstart = function() {
+            return false;
+        };
+        this.unselectable = "on";
+    });
+}
+
+
+
+//////
+
+
+function updateGame() {
+
+    gameInterval = setInterval(function() {
+        clearCanvas();
+        drawBorder();
+        snake.move();
+        snake.draw();
+        apple.draw();
+        drawScore();
+    }, initialSpeed - (speed * speedIncreaseStep));
+}
+
+function initializeGame() {
+
+    clearInterval(gameInterval);
+    hideSettings();
+
+    speed = 0;
+    score = 0;
+    snake = new Snake();
+    apple = new Apple();
+
+    updateGame();
+}</script>
+	
+
+<div id="forest-ext-shadow-host"></div></body></html>
